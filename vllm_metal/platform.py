@@ -161,6 +161,11 @@ class MetalPlatform(Platform):
                 "Please set pipeline_parallel_size=1"
             )
 
+        # Set the worker class for Metal platform
+        # Use CPU worker as base since MPS uses similar patterns
+        if parallel_config.worker_cls == "auto":
+            parallel_config.worker_cls = "vllm.v1.worker.cpu_worker.CPUWorker"
+
         # Force eager mode if configured
         if VLLM_METAL_EAGER_MODE:
             model_config.enforce_eager = True

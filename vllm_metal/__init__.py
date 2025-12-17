@@ -15,7 +15,7 @@ def register() -> str:
     Returns:
         The fully qualified class name of the MetalPlatform.
     """
-    return "vllm_metal.platform:MetalPlatform"
+    return "vllm_metal.platform.MetalPlatform"
 
 
 def register_ops() -> None:
