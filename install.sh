@@ -4,21 +4,20 @@ fetch_latest_release() {
   local repo_owner="$1"
   local repo_name="$2"
 
-  echo ""
-  echo "Fetching latest release..."
+  echo "Fetching latest release..." >&2
 
   local latest_release_url="https://api.github.com/repos/${repo_owner}/${repo_name}/releases/latest"
   local release_data
 
   if ! release_data=$(curl -fsSL "$latest_release_url" 2>&1); then
     error "Failed to fetch release information."
-    echo "Please check your internet connection and try again."
+    echo "Please check your internet connection and try again." >&2
     exit 1
   fi
 
   if [[ -z "$release_data" ]] || [[ "$release_data" == *"Not Found"* ]]; then
     error "No releases found for this repository."
-    echo "Please visit https://github.com/${repo_owner}/${repo_name}/releases"
+    echo "Please visit https://github.com/${repo_owner}/${repo_name}/releases" >&2
     exit 1
   fi
 
