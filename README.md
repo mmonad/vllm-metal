@@ -34,12 +34,6 @@ cd vllm-metal
 uv pip install -e .
 ```
 
-### With MLX Support (Optional)
-
-```bash
-uv pip install vllm-metal[mlx]
-```
-
 ## Quick Start
 
 ```python

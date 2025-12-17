@@ -14,7 +14,6 @@ from vllm_metal.envs import (
     VLLM_METAL_KV_CACHE_DTYPE,
     VLLM_METAL_MAX_BATCH_SIZE,
     VLLM_METAL_MEMORY_FRACTION,
-    VLLM_METAL_USE_MLX,
 )
 
 
@@ -33,7 +32,6 @@ class MetalConfig:
     memory_fraction: float = field(default_factory=lambda: VLLM_METAL_MEMORY_FRACTION)
 
     # Backend selection
-    use_mlx: bool = field(default_factory=lambda: VLLM_METAL_USE_MLX)
     attention_backend: str = field(default_factory=lambda: VLLM_METAL_ATTENTION_BACKEND)
 
     # Execution mode
@@ -85,7 +83,6 @@ class MetalConfig:
         return {
             "device_id": self.device_id,
             "memory_fraction": self.memory_fraction,
-            "use_mlx": self.use_mlx,
             "attention_backend": self.attention_backend,
             "eager_mode": self.eager_mode,
             "compile": self.compile,

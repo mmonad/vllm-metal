@@ -11,13 +11,6 @@ VLLM_METAL_MEMORY_FRACTION: float = float(
     os.getenv("VLLM_METAL_MEMORY_FRACTION", "0.9")
 )
 
-# Enable/disable Metal backend features
-VLLM_METAL_USE_MLX: bool = os.getenv("VLLM_METAL_USE_MLX", "0").lower() in (
-    "1",
-    "true",
-    "yes",
-)
-
 # Attention backend selection: "mps" or "eager"
 VLLM_METAL_ATTENTION_BACKEND: str = os.getenv("VLLM_METAL_ATTENTION_BACKEND", "mps")
 
@@ -52,7 +45,6 @@ def get_metal_env_info() -> dict:
     return {
         "device_id": VLLM_METAL_DEVICE_ID,
         "memory_fraction": VLLM_METAL_MEMORY_FRACTION,
-        "use_mlx": VLLM_METAL_USE_MLX,
         "attention_backend": VLLM_METAL_ATTENTION_BACKEND,
         "enable_profiling": VLLM_METAL_ENABLE_PROFILING,
         "compile": VLLM_METAL_COMPILE,

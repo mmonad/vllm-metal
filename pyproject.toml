@@ -43,11 +43,6 @@ dev = [
     "ruff>=0.1.0",
     "mypy>=1.0.0",
 ]
-mlx = [
-    "mlx>=0.10.0",
-    "mlx-lm>=0.10.0",
-]
-
 [project.urls]
 Homepage = "https://github.com/vllm-project/vllm-metal"
 Repository = "https://github.com/vllm-project/vllm-metal"

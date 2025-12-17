@@ -177,7 +177,7 @@ class TestMetalBackendIntegration:
         from vllm_metal import register
 
         platform_cls = register()
-        assert platform_cls == "vllm_metal.platform:MetalPlatform"
+        assert platform_cls == "vllm_metal.platform.MetalPlatform"
 
     def test_ops_registration(self):
         """Test that Metal ops register correctly."""
