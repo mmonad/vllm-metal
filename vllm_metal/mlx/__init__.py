@@ -34,6 +34,11 @@ from vllm_metal.mlx.device import (
     mlx_clear_cache,
 )
 
+# New boundary-bridging components
+from vllm_metal.mlx.engine import MLXEngine, MLXEngineManager
+from vllm_metal.mlx.models import MLXTransformer, RMSNorm, Attention, FeedForward
+from vllm_metal.mlx.model_loader import load_mlx_model, MLXModelConfig
+
 __all__ = [
     # Attention
     "mlx_scaled_dot_product_attention",
@@ -57,4 +62,15 @@ __all__ = [
     "get_mlx_device",
     "mlx_synchronize",
     "mlx_clear_cache",
+    # Engine (boundary-bridging)
+    "MLXEngine",
+    "MLXEngineManager",
+    # Models
+    "MLXTransformer",
+    "RMSNorm",
+    "Attention",
+    "FeedForward",
+    # Model loading
+    "load_mlx_model",
+    "MLXModelConfig",
 ]

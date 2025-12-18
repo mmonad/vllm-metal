@@ -2,7 +2,7 @@
 
 > **High-performance LLM inference on Apple Silicon using MLX and vLLM**
 
-vLLM Metal is a hardware plugin that enables vLLM to run on Apple Silicon Macs (M1/M2/M3/M4/M5) using MLX as the primary compute backend. It unifies MLX and PyTorch under a single lowering path, similar to how [tpu-inference](https://github.com/vllm-project/tpu-inference) unifies JAX and PyTorch for TPUs.
+vLLM Metal is a hardware plugin that enables vLLM to run on Apple Silicon Macs using MLX as the primary compute backend. It unifies MLX and PyTorch under a single lowering path.
 
 ## Features
 
@@ -14,7 +14,7 @@ vLLM Metal is a hardware plugin that enables vLLM to run on Apple Silicon Macs (
 
 ## Requirements
 
-- macOS on Apple Silicon (M1/M2/M3/M4/M5)
+- macOS on Apple Silicon
 - Python 3.11+
 - MLX 0.20.0+
 - vLLM 0.12.0+
@@ -91,23 +91,23 @@ curl http://localhost:8000/v1/chat/completions \
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    vLLM Core (Unchanged)                    │
-│         Engine, Scheduler, API Server, Tokenizers           │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                    vLLM Core (Unchanged)                   │
+│         Engine, Scheduler, API Server, Tokenizers          │
+└────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                 vllm_metal Plugin Layer                     │
+┌────────────────────────────────────────────────────────────┐
+│                 vllm_metal Plugin Layer                    │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │
-│  │ MetalPlatform│  │ MetalWorker │  │ MetalModelRunner    │ │
-│  │ (Platform)   │  │ (Worker)    │  │ (ModelRunner)       │ │
+│  │MetalPlatform│  │ MetalWorker │  │ MetalModelRunner    │ │
+│  │ (Platform)  │  │ (Worker)    │  │ (ModelRunner)       │ │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Unified Compute Backend                        │
+┌────────────────────────────────────────────────────────────┐
+│              Unified Compute Backend                       │
 │  ┌──────────────────────┐  ┌──────────────────────────────┐│
 │  │   MLX Backend        │  │   PyTorch Backend            ││
 │  │   (Primary)          │  │   (Model Loading/Interop)    ││
@@ -117,13 +117,13 @@ curl http://localhost:8000/v1/chat/completions \
 │  │ • RoPE               │  │ • Tensor Bridge              ││
 │  │ • Cache Ops          │  │                              ││
 │  └──────────────────────┘  └──────────────────────────────┘│
-└─────────────────────────────────────────────────────────────┘
+└────────────────────────────────────────────────────────────┘
                               │
                               ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Metal GPU Layer                          │
-│         Apple Silicon Unified Memory Architecture           │
-└─────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────┐
+│                    Metal GPU Layer                         │
+│         Apple Silicon Unified Memory Architecture          │
+└────────────────────────────────────────────────────────────┘
 ```
 
 ## Configuration
@@ -148,13 +148,6 @@ Any model supported by vLLM that uses standard transformer architectures:
 - **Phi family**: Phi-2, Phi-3
 - **And many more...**
 
-## Limitations
-
-- **No tensor parallelism**: Single GPU only (Apple Silicon limitation)
-- **No CUDA graphs**: Metal doesn't support graph capture
-- **No FP8**: FP8 quantization not supported
-- **Memory bound**: Limited by unified memory (8GB-192GB depending on chip)
-
 ## Development
 
 ```bash
@@ -170,24 +163,6 @@ ruff format .
 mypy vllm_metal
 ```
 
-## Performance
-
-Expected performance on Apple Silicon (varies by model and chip):
-
-| Chip | Memory | Throughput (7B model) |
-|------|--------|----------------------|
-| M1 Pro | 16GB | ~30 tok/s |
-| M1 Max | 32GB | ~50 tok/s |
-| M2 Ultra | 128GB | ~100 tok/s |
-| M3 Max | 64GB | ~80 tok/s |
-| M4 Max | 128GB | ~120 tok/s |
-
-*Note: Actual performance depends on model, sequence length, and batch size.*
-
-## Contributing
-
-Contributions are welcome! Please see the [contributing guidelines](CONTRIBUTING.md).
-
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE) for details.
@@ -196,4 +171,3 @@ Apache-2.0. See [LICENSE](LICENSE) for details.
 
 - [vLLM](https://github.com/vllm-project/vllm) - The high-throughput LLM serving engine
 - [MLX](https://github.com/ml-explore/mlx) - Apple's ML framework for Apple Silicon
-- [tpu-inference](https://github.com/vllm-project/tpu-inference) - Inspiration for the plugin architecture
