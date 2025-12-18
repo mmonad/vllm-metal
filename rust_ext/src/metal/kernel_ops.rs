@@ -99,7 +99,19 @@ pub fn metal_rms_norm(
         hidden_size as i32,
         epsilon,
     )
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+
+    // Copy results back to PyTorch tensor
+    let out_size_bytes = out_buf.size_bytes();
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            out_buf.contents_ptr() as *const u8,
+            out_ptr as *mut u8,
+            out_size_bytes,
+        );
+    }
+
+    Ok(())
 }
 
 /// Fused add + RMS normalization using Metal kernel.
@@ -161,7 +173,24 @@ pub fn metal_fused_add_rms_norm(
         hidden_size as i32,
         epsilon,
     )
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+
+    // Copy results back to PyTorch tensors (output and residual are modified)
+    let out_size_bytes = out_buf.size_bytes();
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            out_buf.contents_ptr() as *const u8,
+            out_ptr as *mut u8,
+            out_size_bytes,
+        );
+        std::ptr::copy_nonoverlapping(
+            res_buf.contents_ptr() as *const u8,
+            res_ptr as *mut u8,
+            out_size_bytes,
+        );
+    }
+
+    Ok(())
 }
 
 // ============================================================================
@@ -220,7 +249,19 @@ pub fn metal_rope_forward(
         &in_buf, &cos_buf, &sin_buf, &out_buf,
         batch_size, seq_len, num_heads, head_dim, offset,
     )
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+
+    // Copy results back
+    let out_size_bytes = out_buf.size_bytes();
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            out_buf.contents_ptr() as *const u8,
+            out_ptr as *mut u8,
+            out_size_bytes,
+        );
+    }
+
+    Ok(())
 }
 
 /// Apply RoPE in-place using Metal kernel.
@@ -265,7 +306,19 @@ pub fn metal_rope_inplace(
         &data_buf, &cos_buf, &sin_buf,
         batch_size, seq_len, num_heads, head_dim, offset,
     )
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+
+    // Copy results back (in-place modification)
+    let data_size_bytes = data_buf.size_bytes();
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            data_buf.contents_ptr() as *const u8,
+            data_ptr as *mut u8,
+            data_size_bytes,
+        );
+    }
+
+    Ok(())
 }
 
 /// Apply RoPE for decode (single position per sequence).
@@ -324,7 +377,25 @@ pub fn metal_rope_decode(
         &q_buf, &k_buf, &cos_buf, &sin_buf, &pos_buf,
         batch_size, num_heads, num_kv_heads, head_dim,
     )
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+
+    // Copy results back (Q and K are modified in-place)
+    let q_size_bytes = q_buf.size_bytes();
+    let k_size_bytes = k_buf.size_bytes();
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            q_buf.contents_ptr() as *const u8,
+            q_ptr as *mut u8,
+            q_size_bytes,
+        );
+        std::ptr::copy_nonoverlapping(
+            k_buf.contents_ptr() as *const u8,
+            k_ptr as *mut u8,
+            k_size_bytes,
+        );
+    }
+
+    Ok(())
 }
 
 // ============================================================================
@@ -389,7 +460,25 @@ pub fn metal_reshape_and_cache(
         &k_buf, &v_buf, &kc_buf, &vc_buf, &sm_buf,
         num_tokens, num_kv_heads, head_dim, block_size,
     )
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+
+    // Copy results back to cache tensors
+    let kc_size_bytes = kc_buf.size_bytes();
+    let vc_size_bytes = vc_buf.size_bytes();
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            kc_buf.contents_ptr() as *const u8,
+            kc_ptr as *mut u8,
+            kc_size_bytes,
+        );
+        std::ptr::copy_nonoverlapping(
+            vc_buf.contents_ptr() as *const u8,
+            vc_ptr as *mut u8,
+            vc_size_bytes,
+        );
+    }
+
+    Ok(())
 }
 
 /// Copy cache blocks using Metal kernel.
@@ -432,5 +521,23 @@ pub fn metal_copy_blocks(
         &kc_buf, &vc_buf, &bm_buf,
         num_pairs, block_size, num_kv_heads, head_dim,
     )
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+
+    // Copy results back to cache tensors
+    let kc_size_bytes = kc_buf.size_bytes();
+    let vc_size_bytes = vc_buf.size_bytes();
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            kc_buf.contents_ptr() as *const u8,
+            kc_ptr as *mut u8,
+            kc_size_bytes,
+        );
+        std::ptr::copy_nonoverlapping(
+            vc_buf.contents_ptr() as *const u8,
+            vc_ptr as *mut u8,
+            vc_size_bytes,
+        );
+    }
+
+    Ok(())
 }

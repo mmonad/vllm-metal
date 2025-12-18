@@ -248,10 +248,8 @@ class MetalAttentionImpl(AttentionImpl):
             key = key.repeat_interleave(self.num_queries_per_kv, dim=1)
             value = value.repeat_interleave(self.num_queries_per_kv, dim=1)
 
-        # NOTE: Metal SDPA kernel has issues - using PyTorch SDPA fallback for now
-        # TODO: Fix Metal SDPA kernel dispatch (threadgroup vs thread indexing)
-        # Metal kernels support head_dim of 64, 128, 256
-
+        # NOTE: Metal SDPA kernel works but has copy overhead - using PyTorch for now
+        # TODO: Implement zero-copy Metal buffers for better performance
         # Use PyTorch SDPA (well-optimized for MPS)
         # SDPA expects: [batch, num_heads, seq_len, head_size]
         query = query.transpose(0, 1).unsqueeze(0)  # [1, num_heads, seq, head]
@@ -285,9 +283,8 @@ class MetalAttentionImpl(AttentionImpl):
         """
         batch_size = query.shape[0]
 
-        # NOTE: Metal paged attention kernel has issues - using PyTorch fallback for now
-        # TODO: Fix Metal paged attention kernel dispatch (threadgroup vs thread indexing)
-        # Metal kernels support head_dim of 64, 128, 256
+        # NOTE: Metal paged attention kernel works but has copy overhead
+        # TODO: Implement zero-copy Metal buffers for better performance
 
         # Use PyTorch loop-based decode
         outputs = []

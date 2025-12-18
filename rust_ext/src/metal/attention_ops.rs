@@ -119,7 +119,7 @@ pub fn metal_sdpa(
 
     let dtype_str = query.getattr("dtype")?.str()?.to_string();
 
-    // Create Metal buffers
+    // Create Metal buffers (these copy data from PyTorch tensors)
     let q_buf = tensor_to_buffer(q_ptr, q_shape.clone(), &dtype_str)?;
     let k_buf = tensor_to_buffer(k_ptr, k_shape.clone(), &dtype_str)?;
     let v_buf = tensor_to_buffer(
@@ -149,7 +149,20 @@ pub fn metal_sdpa(
         seq_len,
         scale,
     )
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+
+    // Copy results back from Metal buffer to PyTorch tensor
+    // This is necessary because from_ptr copies data, not zero-copy
+    let out_size_bytes = out_buf.size_bytes();
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            out_buf.contents_ptr() as *const u8,
+            out_ptr as *mut u8,
+            out_size_bytes,
+        );
+    }
+
+    Ok(())
 }
 
 /// Paged attention for decode phase with KV cache.
@@ -242,7 +255,19 @@ pub fn metal_paged_attention(
         scale,
         max_blocks_per_seq,
     )
-    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))
+    .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(e))?;
+
+    // Copy results back from Metal buffer to PyTorch tensor
+    let out_size_bytes = out_buf.size_bytes();
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            out_buf.contents_ptr() as *const u8,
+            out_ptr as *mut u8,
+            out_size_bytes,
+        );
+    }
+
+    Ok(())
 }
 
 /// Load the Metal shader library from a specific path.
