@@ -76,3 +76,9 @@ disable_error_code = ["override", "misc", "assignment", "arg-type", "index", "ca
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pytest>=9.0.2",
+]

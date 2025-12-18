@@ -51,36 +51,9 @@ get_repo_root() {
   git rev-parse --show-toplevel
 }
 
-uv_pip_install_pytorch() {
-  USE_CUDA=0 USE_CUDNN=0 USE_ROCM=0 USE_XPU=0 USE_MPS=1 uv pip install "$pytorch_dir"
-}
-
-# Install PyTorch from submodule
-install_pytorch_from_submodule() {
-  local repo_root
-  repo_root="$(get_repo_root)"
-  local pytorch_dir="${repo_root}/extern/pytorch"
-
-  if [ ! -d "$pytorch_dir" ]; then
-    error "PyTorch submodule not found at ${pytorch_dir}"
-    echo "Please run: git submodule update --init --recursive"
-    return 1
-  fi
-
-  section "Installing PyTorch from submodule"
-  if ! uv_pip_install_pytorch; then
-    error "Failed to install PyTorch from submodule"
-    return 1
-  fi
-}
-
 # Install dev dependencies
 install_dev_deps() {
   section "Installing dependencies"
-  if ! install_pytorch_from_submodule; then
-    error "Failed to install PyTorch, aborting"
-    return 1
-  fi
   uv pip install -e ".[dev]"
 }
 

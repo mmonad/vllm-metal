@@ -2,7 +2,7 @@
 """
 vLLM Metal Backend - Hardware plugin for Apple Silicon
 
-This module provides Metal/MPS backend support for vLLM,
+This module provides Metal backend support for vLLM,
 enabling high-performance LLM inference on Apple Silicon devices.
 """
 

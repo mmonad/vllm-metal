@@ -30,14 +30,14 @@ class TestActivations:
     """Tests for activation functions."""
 
     @pytest.mark.metal
-    def test_silu_and_mul(self, mps_device):
+    def test_silu_and_mul(self, metal_device):
         """Test fused SiLU and multiplication."""
         batch_size, hidden_size = 4, 64
         x = torch.randn(
-            batch_size, hidden_size * 2, device=mps_device, dtype=torch.float16
+            batch_size, hidden_size * 2, device=metal_device, dtype=torch.float16
         )
         out = torch.empty(
-            batch_size, hidden_size, device=mps_device, dtype=torch.float16
+            batch_size, hidden_size, device=metal_device, dtype=torch.float16
         )
 
         silu_and_mul(out, x)
@@ -50,14 +50,14 @@ class TestActivations:
         torch.testing.assert_close(out, expected, rtol=1e-2, atol=1e-2)
 
     @pytest.mark.metal
-    def test_gelu_and_mul(self, mps_device):
+    def test_gelu_and_mul(self, metal_device):
         """Test fused GELU and multiplication."""
         batch_size, hidden_size = 4, 64
         x = torch.randn(
-            batch_size, hidden_size * 2, device=mps_device, dtype=torch.float16
+            batch_size, hidden_size * 2, device=metal_device, dtype=torch.float16
         )
         out = torch.empty(
-            batch_size, hidden_size, device=mps_device, dtype=torch.float16
+            batch_size, hidden_size, device=metal_device, dtype=torch.float16
         )
 
         gelu_and_mul(out, x)
@@ -70,14 +70,14 @@ class TestActivations:
         torch.testing.assert_close(out, expected, rtol=1e-2, atol=1e-2)
 
     @pytest.mark.metal
-    def test_gelu_tanh_and_mul(self, mps_device):
+    def test_gelu_tanh_and_mul(self, metal_device):
         """Test fused GELU (tanh) and multiplication."""
         batch_size, hidden_size = 4, 64
         x = torch.randn(
-            batch_size, hidden_size * 2, device=mps_device, dtype=torch.float16
+            batch_size, hidden_size * 2, device=metal_device, dtype=torch.float16
         )
         out = torch.empty(
-            batch_size, hidden_size, device=mps_device, dtype=torch.float16
+            batch_size, hidden_size, device=metal_device, dtype=torch.float16
         )
 
         gelu_tanh_and_mul(out, x)
@@ -94,13 +94,15 @@ class TestLayerNorm:
     """Tests for layer normalization operations."""
 
     @pytest.mark.metal
-    def test_rms_norm(self, mps_device):
+    def test_rms_norm(self, metal_device):
         """Test RMS normalization."""
         batch_size, hidden_size = 4, 64
         epsilon = 1e-6
 
-        x = torch.randn(batch_size, hidden_size, device=mps_device, dtype=torch.float16)
-        weight = torch.ones(hidden_size, device=mps_device, dtype=torch.float16)
+        x = torch.randn(
+            batch_size, hidden_size, device=metal_device, dtype=torch.float16
+        )
+        weight = torch.ones(hidden_size, device=metal_device, dtype=torch.float16)
         out = torch.empty_like(x)
 
         rms_norm(out, x, weight, epsilon)
@@ -112,16 +114,18 @@ class TestLayerNorm:
         torch.testing.assert_close(out, expected, rtol=1e-2, atol=1e-2)
 
     @pytest.mark.metal
-    def test_fused_add_rms_norm(self, mps_device):
+    def test_fused_add_rms_norm(self, metal_device):
         """Test fused residual add and RMS normalization."""
         batch_size, hidden_size = 4, 64
         epsilon = 1e-6
 
-        x = torch.randn(batch_size, hidden_size, device=mps_device, dtype=torch.float16)
-        residual = torch.randn(
-            batch_size, hidden_size, device=mps_device, dtype=torch.float16
+        x = torch.randn(
+            batch_size, hidden_size, device=metal_device, dtype=torch.float16
         )
-        weight = torch.ones(hidden_size, device=mps_device, dtype=torch.float16)
+        residual = torch.randn(
+            batch_size, hidden_size, device=metal_device, dtype=torch.float16
+        )
+        weight = torch.ones(hidden_size, device=metal_device, dtype=torch.float16)
 
         # Reference computation
         x_ref = x.clone()
@@ -149,23 +153,26 @@ class TestRotaryEmbedding:
         assert cache.dtype == torch.float32
 
     @pytest.mark.metal
-    def test_rotary_embedding(self, mps_device):
+    def test_rotary_embedding(self, metal_device):
         """Test rotary embedding application."""
         num_tokens = 8
         num_heads = 4
         num_kv_heads = 4
         head_size = 64
 
-        positions = torch.arange(num_tokens, device=mps_device)
+        positions = torch.arange(num_tokens, device=metal_device)
         query = torch.randn(
-            num_tokens, num_heads * head_size, device=mps_device, dtype=torch.float16
+            num_tokens, num_heads * head_size, device=metal_device, dtype=torch.float16
         )
         key = torch.randn(
-            num_tokens, num_kv_heads * head_size, device=mps_device, dtype=torch.float16
+            num_tokens,
+            num_kv_heads * head_size,
+            device=metal_device,
+            dtype=torch.float16,
         )
 
         cache = create_cos_sin_cache(
-            128, head_size, device=mps_device, dtype=torch.float16
+            128, head_size, device=metal_device, dtype=torch.float16
         )
 
         q_out, k_out = rotary_embedding(positions, query, key, head_size, cache)
@@ -179,11 +186,11 @@ class TestSampling:
     """Tests for sampling operations."""
 
     @pytest.mark.metal
-    def test_greedy_sampling(self, mps_device):
+    def test_greedy_sampling(self, metal_device):
         """Test greedy (argmax) sampling."""
         batch_size, vocab_size = 4, 1000
         logits = torch.randn(
-            batch_size, vocab_size, device=mps_device, dtype=torch.float16
+            batch_size, vocab_size, device=metal_device, dtype=torch.float16
         )
 
         samples = greedy_sampling(logits)
@@ -196,13 +203,13 @@ class TestSampling:
         torch.testing.assert_close(samples, expected)
 
     @pytest.mark.metal
-    def test_sampling_from_probs(self, mps_device):
+    def test_sampling_from_probs(self, metal_device):
         """Test sampling from probability distribution."""
         batch_size, vocab_size = 4, 100
         probs = functional.softmax(
-            torch.randn(batch_size, vocab_size, device=mps_device), dim=-1
+            torch.randn(batch_size, vocab_size, device=metal_device), dim=-1
         )
-        random_numbers = torch.rand(batch_size, device=mps_device)
+        random_numbers = torch.rand(batch_size, device=metal_device)
 
         samples = sampling_from_probs(probs, random_numbers)
 
@@ -211,13 +218,13 @@ class TestSampling:
         assert (samples < vocab_size).all()
 
     @pytest.mark.metal
-    def test_sampling_from_probs_deterministic(self, mps_device):
+    def test_sampling_from_probs_deterministic(self, metal_device):
         """Test deterministic sampling (argmax mode)."""
         batch_size, vocab_size = 4, 100
         probs = functional.softmax(
-            torch.randn(batch_size, vocab_size, device=mps_device), dim=-1
+            torch.randn(batch_size, vocab_size, device=metal_device), dim=-1
         )
-        random_numbers = torch.rand(batch_size, device=mps_device)
+        random_numbers = torch.rand(batch_size, device=metal_device)
 
         samples = sampling_from_probs(probs, random_numbers, deterministic=True)
 
@@ -225,11 +232,11 @@ class TestSampling:
         torch.testing.assert_close(samples, expected)
 
     @pytest.mark.metal
-    def test_top_k_sampling(self, mps_device):
+    def test_top_k_sampling(self, metal_device):
         """Test top-k sampling."""
         batch_size, vocab_size = 4, 1000
         logits = torch.randn(
-            batch_size, vocab_size, device=mps_device, dtype=torch.float16
+            batch_size, vocab_size, device=metal_device, dtype=torch.float16
         )
 
         samples = top_k_sampling(logits, top_k=50)
@@ -239,11 +246,11 @@ class TestSampling:
         assert (samples < vocab_size).all()
 
     @pytest.mark.metal
-    def test_top_p_sampling(self, mps_device):
+    def test_top_p_sampling(self, metal_device):
         """Test top-p (nucleus) sampling."""
         batch_size, vocab_size = 4, 1000
         logits = torch.randn(
-            batch_size, vocab_size, device=mps_device, dtype=torch.float16
+            batch_size, vocab_size, device=metal_device, dtype=torch.float16
         )
 
         samples = top_p_sampling(logits, top_p=0.9)

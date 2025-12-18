@@ -11,8 +11,8 @@ VLLM_METAL_MEMORY_FRACTION: float = float(
     os.getenv("VLLM_METAL_MEMORY_FRACTION", "0.9")
 )
 
-# Attention backend selection: "mps" or "eager"
-VLLM_METAL_ATTENTION_BACKEND: str = os.getenv("VLLM_METAL_ATTENTION_BACKEND", "mps")
+# Attention backend selection: "metal" or "eager"
+VLLM_METAL_ATTENTION_BACKEND: str = os.getenv("VLLM_METAL_ATTENTION_BACKEND", "metal")
 
 # Enable profiling
 VLLM_METAL_ENABLE_PROFILING: bool = os.getenv(
@@ -26,7 +26,7 @@ VLLM_METAL_COMPILE: bool = os.getenv("VLLM_METAL_COMPILE", "0").lower() in (
     "yes",
 )
 
-# Batch size limits for MPS
+# Batch size limits for Metal
 VLLM_METAL_MAX_BATCH_SIZE: int = int(os.getenv("VLLM_METAL_MAX_BATCH_SIZE", "256"))
 
 # KV cache dtype override (None means use model dtype)

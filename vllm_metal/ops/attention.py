@@ -23,7 +23,7 @@ def paged_attention_v1(
 ) -> None:
     """Paged attention v1 for Metal.
 
-    This is a Python implementation that works on MPS.
+    This is a Python implementation that works on Metal.
 
     Args:
         out: Output tensor [num_seqs, num_heads, head_size]

@@ -12,12 +12,12 @@ from vllm_metal.envs import (
     VLLM_METAL_MEMORY_FRACTION,
 )
 from vllm_metal.utils import (
-    check_mps_availability,
+    check_metal_availability,
     get_apple_chip_name,
     get_metal_device_info,
-    get_mps_memory_info,
-    mps_empty_cache,
-    mps_synchronize,
+    get_metal_memory_info,
+    metal_empty_cache,
+    metal_synchronize,
 )
 
 if TYPE_CHECKING:
@@ -27,12 +27,12 @@ logger = init_logger(__name__)
 
 
 class MetalPlatform(Platform):
-    """Platform implementation for Apple Metal/MPS backend."""
+    """Platform implementation for Apple Metal backend."""
 
     _enum = PlatformEnum.OOT  # Out-of-tree platform
-    device_name: str = "mps"
-    device_type: str = "mps"
-    dispatch_key: str = "MPS"
+    device_name: str = "metal"
+    device_type: str = "metal"
+    dispatch_key: str = "METAL"
 
     supported_quantization = ["awq", "gptq", "compressed-tensors"]
 
@@ -44,10 +44,10 @@ class MetalPlatform(Platform):
     @classmethod
     def get_device_uuid(cls, device_id: int = 0) -> str:
         """Get a unique identifier for the Metal device."""
-        # MPS doesn't have a PCI bus ID like CUDA
+        # Metal doesn't have a PCI bus ID like CUDA
         # Use chip name + device_id as identifier
         chip_name = get_apple_chip_name().replace(" ", "_")
-        return f"mps:{chip_name}:{device_id}"
+        return f"metal:{chip_name}:{device_id}"
 
     @classmethod
     def get_device_total_memory(cls, device_id: int = 0) -> int:
@@ -64,14 +64,14 @@ class MetalPlatform(Platform):
     def get_device_capability(cls, device_id: int = 0):
         """Get device capability.
 
-        Returns None as MPS doesn't have compute capability like CUDA.
+        Returns None as Metal doesn't have compute capability like CUDA.
         """
         return None
 
     @classmethod
     def is_async_output_supported(cls, enforce_eager: bool) -> bool:
         """Check if async output is supported."""
-        # MPS supports async operations
+        # Metal supports async operations
         return not enforce_eager
 
     @classmethod
@@ -83,17 +83,18 @@ class MetalPlatform(Platform):
     def seed_everything(cls, seed: int) -> None:
         """Seed all random number generators."""
         torch.manual_seed(seed)
-        if torch.backends.mps.is_available():
-            # MPS uses the same seed as CPU for now
+        try:
             torch.mps.manual_seed(seed)
+        except Exception:
+            pass
 
     @classmethod
     def set_device(cls, device) -> None:
         """Set the current device.
 
-        MPS only has one device, so this is mostly a no-op.
+        Metal only has one device, so this is mostly a no-op.
         """
-        # Ensure MPS is the default device for new tensors
+        # Ensure the proper device for new tensors
         if isinstance(device, int):
             device = torch.device("mps", device)
         elif isinstance(device, str):
@@ -106,26 +107,26 @@ class MetalPlatform(Platform):
         Returns:
             used_bytes: The number of bytes currently allocated.
         """
-        allocated, _ = get_mps_memory_info()
+        allocated, _ = get_metal_memory_info()
         return allocated
 
     @classmethod
     def empty_cache(cls) -> None:
-        """Empty the MPS memory cache."""
-        mps_empty_cache()
+        """Empty the Metal memory cache."""
+        metal_empty_cache()
 
     @classmethod
     def synchronize(cls) -> None:
-        """Synchronize MPS operations."""
-        mps_synchronize()
+        """Synchronize Metal operations."""
+        metal_synchronize()
 
     @classmethod
     def mem_get_info(cls) -> tuple[int, int]:
         """Get memory info (free, total).
 
-        Note: MPS uses unified memory, so 'free' is estimated.
+        Note: Metal uses unified memory, so 'free' is estimated.
         """
-        allocated, total = get_mps_memory_info()
+        allocated, total = get_metal_memory_info()
         free = total - allocated
         return free, total
 
@@ -140,9 +141,9 @@ class MetalPlatform(Platform):
         from vllm.config.compilation import CUDAGraphMode
 
         # Validate platform availability (always safe to check)
-        available, error = check_mps_availability()
+        available, error = check_metal_availability()
         if not available:
-            raise RuntimeError(f"Metal/MPS backend not available: {error}")
+            raise RuntimeError(f"Metal backend not available: {error}")
 
         # Get config objects (may be None in early calls)
         model_config = vllm_config.model_config
@@ -157,21 +158,21 @@ class MetalPlatform(Platform):
                 f"Metal backend: check_and_update_config called, worker_cls={parallel_config.worker_cls}"
             )
             if parallel_config.worker_cls == "auto":
-                parallel_config.worker_cls = "vllm_metal.v1.metal_worker.MetalWorker"
-                logger.info("Metal backend: Using MetalWorker")
+                parallel_config.worker_cls = "vllm_metal.v2.worker.MetalWorker"
+                logger.info("Metal backend: Using MetalWorker V2")
             else:
                 logger.info(
                     f"Metal backend: worker_cls already set to {parallel_config.worker_cls}, not overriding"
                 )
 
-            # MPS doesn't support tensor parallelism
+            # Metal doesn't support tensor parallelism
             if parallel_config.tensor_parallel_size > 1:
                 raise ValueError(
                     "Metal backend does not support tensor parallelism. "
                     "Please set tensor_parallel_size=1"
                 )
 
-            # MPS doesn't support pipeline parallelism
+            # Metal doesn't support pipeline parallelism
             if parallel_config.pipeline_parallel_size > 1:
                 raise ValueError(
                     "Metal backend does not support pipeline parallelism. "
@@ -189,15 +190,15 @@ class MetalPlatform(Platform):
             model_config.enforce_eager = True
             logger.info("Metal backend: Using eager mode")
 
-        # Disable CUDA graphs and torch.compile - MPS doesn't support them
+        # Disable CUDA graphs and torch.compile - Metal doesn't support them
         if compilation_config is not None:
             compilation_config.cudagraph_mode = CUDAGraphMode.NONE
             compilation_config.cudagraph_capture_sizes = []
             compilation_config.compile_sizes = []
-            # Disable compilation entirely - MPS doesn't support CUDA graphs
+            # Disable compilation entirely - Metal doesn't support CUDA graphs
             compilation_config.level = 0
             logger.info(
-                "Metal backend: Disabled CUDA graphs and compilation (not supported on MPS)"
+                "Metal backend: Disabled CUDA graphs and compilation (not supported on Metal)"
             )
 
         # Log configuration info only when cache_config is available
@@ -225,7 +226,7 @@ class MetalPlatform(Platform):
     @classmethod
     def verify_model_arch(cls, model_arch: str) -> None:
         """Verify that the model architecture is supported."""
-        # Most transformer architectures are supported via PyTorch MPS
+        # Most transformer architectures are supported via PyTorch Metal
         # Log a warning for potentially unsupported architectures
         unsupported = {"mamba", "rwkv", "xlnet"}
         if model_arch.lower() in unsupported:
@@ -249,22 +250,22 @@ class MetalPlatform(Platform):
     ) -> str:
         """Get the attention backend class path for Metal.
 
-        For MPS/Metal, we use a custom MPS attention backend that uses
-        PyTorch's scaled_dot_product_attention which is supported on MPS.
+        For Metal, we use a custom Metal attention backend that uses
+        PyTorch's scaled_dot_product_attention which is optimized.
         """
         if use_mla:
-            raise NotImplementedError("MLA is not supported on MPS/Metal.")
+            raise NotImplementedError("MLA is not supported on Metal.")
         if use_sparse:
-            raise NotImplementedError("Sparse Attention is not supported on MPS/Metal.")
+            raise NotImplementedError("Sparse Attention is not supported on Metal.")
 
-        # Use our custom MPS attention backend
-        return "vllm_metal.v1.attention.backends.mps_attn.MPSAttentionBackend"
+        # Use our custom Metal attention backend
+        return "vllm_metal.attention.backend.MetalAttentionBackend"
 
     @classmethod
     def is_pin_memory_available(cls) -> bool:
         """Check if pin memory is available.
 
-        MPS uses unified memory, so pinned memory isn't applicable.
+        Metal uses unified memory, so pinned memory isn't applicable.
         """
         return False
 
@@ -315,21 +316,21 @@ class MetalPlatform(Platform):
     @classmethod
     def support_static_graph_mode(cls) -> bool:
         """Check if static graph mode is supported."""
-        # MPS doesn't have graph capture like CUDA
+        # Metal doesn't have graph capture like CUDA
         return False
 
     @classmethod
     @contextmanager
     def device_scope(cls, device_id: int = 0):
         """Context manager for device scope."""
-        # MPS only has one device
+        # Metal only has one device
         yield
 
     @classmethod
     def get_device_communicator_cls(cls):
         """Get the device communicator class.
 
-        Returns None as MPS doesn't support distributed.
+        Returns None as Metal doesn't support distributed.
         """
         return None
 
@@ -341,7 +342,7 @@ class MetalPlatform(Platform):
     ):
         """Initialize torch distributed process group.
 
-        MPS doesn't support distributed training.
+        Metal doesn't support distributed training.
         """
         raise NotImplementedError(
             "Metal backend does not support distributed operations"

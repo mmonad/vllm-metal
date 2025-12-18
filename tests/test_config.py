@@ -21,7 +21,7 @@ class TestMetalConfig:
 
         assert config.device_id == 0
         assert 0 < config.memory_fraction <= 1.0
-        assert config.attention_backend in ("mps", "eager")
+        assert config.attention_backend in ("metal", "eager")
         assert isinstance(config.eager_mode, bool)
         assert isinstance(config.compile, bool)
         assert config.max_batch_size > 0

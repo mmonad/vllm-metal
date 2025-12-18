@@ -60,9 +60,9 @@ class MetalConfig:
                 f"memory_fraction must be between 0 and 1, got {self.memory_fraction}"
             )
 
-        if self.attention_backend not in ("mps", "eager"):
+        if self.attention_backend not in ("metal", "eager"):
             raise ValueError(
-                f"attention_backend must be 'mps' or 'eager', "
+                f"attention_backend must be 'metal' or 'eager', "
                 f"got {self.attention_backend}"
             )
 

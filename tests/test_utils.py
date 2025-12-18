@@ -7,15 +7,15 @@ import pytest
 import torch
 
 from vllm_metal.utils import (
-    check_mps_availability,
+    check_metal_availability,
     format_memory_size,
     get_apple_chip_name,
     get_metal_device_info,
-    get_mps_memory_info,
+    get_metal_memory_info,
     get_optimal_dtype,
     is_apple_silicon,
-    mps_empty_cache,
-    mps_synchronize,
+    metal_empty_cache,
+    metal_synchronize,
 )
 
 
@@ -47,16 +47,15 @@ class TestPlatformDetection:
         assert isinstance(info, dict)
         assert "name" in info
         assert "is_apple_silicon" in info
-        assert "mps_available" in info
-        assert "mps_built" in info
+        assert "metal_available" in info
 
 
-class TestMPSAvailability:
-    """Tests for MPS availability checking."""
+class TestMetalAvailability:
+    """Tests for Metal availability checking."""
 
-    def test_check_mps_availability(self):
-        """Test MPS availability check."""
-        available, error = check_mps_availability()
+    def test_check_metal_availability(self):
+        """Test Metal availability check."""
+        available, error = check_metal_availability()
 
         assert isinstance(available, bool)
         assert error is None or isinstance(error, str)
@@ -66,24 +65,24 @@ class TestMPSAvailability:
             assert error is not None
 
     @pytest.mark.metal
-    def test_mps_synchronize(self, mps_device):
-        """Test MPS synchronization."""
+    def test_metal_synchronize(self, metal_device):
+        """Test Metal synchronization."""
         # Should not raise
-        mps_synchronize()
+        metal_synchronize()
 
     @pytest.mark.metal
-    def test_mps_empty_cache(self, mps_device):
-        """Test MPS cache clearing."""
+    def test_metal_empty_cache(self, metal_device):
+        """Test Metal cache clearing."""
         # Create some tensors
-        _ = torch.randn(100, 100, device=mps_device)
+        _ = torch.randn(100, 100, device=metal_device)
 
         # Should not raise
-        mps_empty_cache()
+        metal_empty_cache()
 
     @pytest.mark.metal
-    def test_get_mps_memory_info(self, mps_device):
-        """Test getting MPS memory information."""
-        allocated, total = get_mps_memory_info()
+    def test_get_metal_memory_info(self, metal_device):
+        """Test getting Metal memory information."""
+        allocated, total = get_metal_memory_info()
 
         assert isinstance(allocated, int)
         assert isinstance(total, int)

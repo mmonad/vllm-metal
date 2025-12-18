@@ -17,15 +17,16 @@ class TestBasicInference:
         # Using a small model for faster testing
         return "gpt2"
 
-    def test_mps_tensor_operations(self, mps_device):
-        """Test basic MPS tensor operations work."""
+    def test_metal_tensor_operations(self, metal_device):
+        """Test basic Metal tensor operations work."""
         # Create tensors
-        a = torch.randn(32, 64, device=mps_device, dtype=torch.float16)
-        b = torch.randn(64, 32, device=mps_device, dtype=torch.float16)
+        a = torch.randn(32, 64, device=metal_device, dtype=torch.float16)
+        b = torch.randn(64, 32, device=metal_device, dtype=torch.float16)
 
         # Matrix multiplication
         c = torch.matmul(a, b)
         assert c.shape == (32, 32)
+        # PyTorch device type for Metal is "mps"
         assert c.device.type == "mps"
 
         # Softmax
@@ -33,13 +34,13 @@ class TestBasicInference:
         assert d.shape == c.shape
         assert torch.allclose(
             d.sum(dim=-1),
-            torch.ones(32, device=mps_device, dtype=torch.float16),
+            torch.ones(32, device=metal_device, dtype=torch.float16),
             rtol=1e-2,
             atol=1e-2,
         )
 
-    def test_attention_computation(self, mps_device):
-        """Test attention computation on MPS."""
+    def test_attention_computation(self, metal_device):
+        """Test attention computation on Metal."""
         batch_size = 2
         num_heads = 4
         seq_len = 16
@@ -51,7 +52,7 @@ class TestBasicInference:
             num_heads,
             seq_len,
             head_dim,
-            device=mps_device,
+            device=metal_device,
             dtype=torch.float16,
         )
         k = torch.randn(
@@ -59,7 +60,7 @@ class TestBasicInference:
             num_heads,
             seq_len,
             head_dim,
-            device=mps_device,
+            device=metal_device,
             dtype=torch.float16,
         )
         v = torch.randn(
@@ -67,7 +68,7 @@ class TestBasicInference:
             num_heads,
             seq_len,
             head_dim,
-            device=mps_device,
+            device=metal_device,
             dtype=torch.float16,
         )
 
@@ -75,43 +76,45 @@ class TestBasicInference:
         out = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True)
 
         assert out.shape == (batch_size, num_heads, seq_len, head_dim)
+        # PyTorch device type for Metal is "mps"
         assert out.device.type == "mps"
 
-    def test_layer_norm_on_mps(self, mps_device):
-        """Test layer normalization on MPS."""
+    def test_layer_norm_on_metal(self, metal_device):
+        """Test layer normalization on Metal."""
         batch_size = 4
         seq_len = 16
         hidden_size = 64
 
         x = torch.randn(
-            batch_size, seq_len, hidden_size, device=mps_device, dtype=torch.float16
+            batch_size, seq_len, hidden_size, device=metal_device, dtype=torch.float16
         )
 
         layer_norm = torch.nn.LayerNorm(
-            hidden_size, device=mps_device, dtype=torch.float16
+            hidden_size, device=metal_device, dtype=torch.float16
         )
         out = layer_norm(x)
 
         assert out.shape == x.shape
+        # PyTorch device type for Metal is "mps"
         assert out.device.type == "mps"
 
-    def test_feed_forward_on_mps(self, mps_device):
-        """Test feed-forward computation on MPS."""
+    def test_feed_forward_on_metal(self, metal_device):
+        """Test feed-forward computation on Metal."""
         batch_size = 4
         seq_len = 16
         hidden_size = 64
         intermediate_size = 256
 
         x = torch.randn(
-            batch_size, seq_len, hidden_size, device=mps_device, dtype=torch.float16
+            batch_size, seq_len, hidden_size, device=metal_device, dtype=torch.float16
         )
 
         # Create linear layers
         up_proj = torch.nn.Linear(
-            hidden_size, intermediate_size, device=mps_device, dtype=torch.float16
+            hidden_size, intermediate_size, device=metal_device, dtype=torch.float16
         )
         down_proj = torch.nn.Linear(
-            intermediate_size, hidden_size, device=mps_device, dtype=torch.float16
+            intermediate_size, hidden_size, device=metal_device, dtype=torch.float16
         )
 
         # Feed forward with SiLU activation
@@ -119,13 +122,14 @@ class TestBasicInference:
         out = down_proj(hidden)
 
         assert out.shape == x.shape
+        # PyTorch device type for Metal is "mps"
         assert out.device.type == "mps"
 
 
 class TestKVCache:
     """Tests for KV cache operations."""
 
-    def test_kv_cache_storage(self, mps_device):
+    def test_kv_cache_storage(self, metal_device):
         """Test storing to KV cache."""
         from vllm_metal.ops.cache import (
             allocate_unified_kv_cache,
@@ -144,7 +148,7 @@ class TestKVCache:
             num_kv_heads,
             head_size,
             dtype=torch.float16,
-            device=mps_device,
+            device=metal_device,
         )
 
         assert kv_cache.shape == (num_blocks, 2, block_size, num_kv_heads, head_size)
@@ -152,12 +156,20 @@ class TestKVCache:
         # Store some values
         num_tokens = 8
         key = torch.randn(
-            num_tokens, num_kv_heads, head_size, device=mps_device, dtype=torch.float16
+            num_tokens,
+            num_kv_heads,
+            head_size,
+            device=metal_device,
+            dtype=torch.float16,
         )
         value = torch.randn(
-            num_tokens, num_kv_heads, head_size, device=mps_device, dtype=torch.float16
+            num_tokens,
+            num_kv_heads,
+            head_size,
+            device=metal_device,
+            dtype=torch.float16,
         )
-        slot_mapping = torch.arange(num_tokens, device=mps_device)
+        slot_mapping = torch.arange(num_tokens, device=metal_device)
 
         reshape_and_cache_flash(key, value, kv_cache, slot_mapping)
 
@@ -186,11 +198,11 @@ class TestMetalBackendIntegration:
         # Should not raise
         register_ops()
 
-    def test_attention_backend_instantiation(self, mps_device):
+    def test_attention_backend_instantiation(self, metal_device):
         """Test attention backend can be instantiated."""
-        from vllm_metal.attention import MPSAttentionImpl
+        from vllm_metal.attention import MetalAttentionImpl
 
-        impl = MPSAttentionImpl(
+        impl = MetalAttentionImpl(
             num_heads=8,
             head_size=64,
             scale=0.125,
@@ -203,7 +215,7 @@ class TestMetalBackendIntegration:
 
 
 class TestTransformerBlock:
-    """Test a complete transformer block on MPS."""
+    """Test a complete transformer block on Metal."""
 
     @pytest.fixture
     def transformer_config(self):
@@ -216,7 +228,7 @@ class TestTransformerBlock:
             "num_kv_heads": 4,
         }
 
-    def test_transformer_block(self, mps_device, transformer_config):
+    def test_transformer_block(self, metal_device, transformer_config):
         """Test a complete transformer block."""
         batch_size = 2
         seq_len = 16
@@ -228,33 +240,33 @@ class TestTransformerBlock:
 
         # Input
         x = torch.randn(
-            batch_size, seq_len, hidden_size, device=mps_device, dtype=torch.float16
+            batch_size, seq_len, hidden_size, device=metal_device, dtype=torch.float16
         )
 
         # Layer norm
-        ln1 = torch.nn.LayerNorm(hidden_size, device=mps_device, dtype=torch.float16)
+        ln1 = torch.nn.LayerNorm(hidden_size, device=metal_device, dtype=torch.float16)
 
         # Attention projections
         q_proj = torch.nn.Linear(
-            hidden_size, num_heads * head_dim, device=mps_device, dtype=torch.float16
+            hidden_size, num_heads * head_dim, device=metal_device, dtype=torch.float16
         )
         k_proj = torch.nn.Linear(
-            hidden_size, num_heads * head_dim, device=mps_device, dtype=torch.float16
+            hidden_size, num_heads * head_dim, device=metal_device, dtype=torch.float16
         )
         v_proj = torch.nn.Linear(
-            hidden_size, num_heads * head_dim, device=mps_device, dtype=torch.float16
+            hidden_size, num_heads * head_dim, device=metal_device, dtype=torch.float16
         )
         o_proj = torch.nn.Linear(
-            num_heads * head_dim, hidden_size, device=mps_device, dtype=torch.float16
+            num_heads * head_dim, hidden_size, device=metal_device, dtype=torch.float16
         )
 
         # FFN
-        ln2 = torch.nn.LayerNorm(hidden_size, device=mps_device, dtype=torch.float16)
+        ln2 = torch.nn.LayerNorm(hidden_size, device=metal_device, dtype=torch.float16)
         up_proj = torch.nn.Linear(
-            hidden_size, intermediate_size, device=mps_device, dtype=torch.float16
+            hidden_size, intermediate_size, device=metal_device, dtype=torch.float16
         )
         down_proj = torch.nn.Linear(
-            intermediate_size, hidden_size, device=mps_device, dtype=torch.float16
+            intermediate_size, hidden_size, device=metal_device, dtype=torch.float16
         )
 
         # Forward pass
@@ -283,5 +295,6 @@ class TestTransformerBlock:
         x = residual + x
 
         assert x.shape == (batch_size, seq_len, hidden_size)
+        # PyTorch device type for Metal is "mps"
         assert x.device.type == "mps"
         assert not torch.isnan(x).any()

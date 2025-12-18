@@ -1,3 +1,0 @@
-[submodule "extern/pytorch"]
-	path = extern/pytorch
-	url = https://github.com/ericcurtin/pytorch.git

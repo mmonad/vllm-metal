@@ -57,11 +57,10 @@ def get_metal_device_info() -> dict:
     info = {
         "name": get_apple_chip_name(),
         "is_apple_silicon": is_apple_silicon(),
-        "mps_available": torch.backends.mps.is_available(),
-        "mps_built": torch.backends.mps.is_built(),
+        "metal_available": is_apple_silicon() and platform.system() == "Darwin",
     }
 
-    if info["mps_available"]:
+    if info["metal_available"]:
         # Get memory info
         try:
             result = subprocess.run(
@@ -91,68 +90,72 @@ def get_metal_device_info() -> dict:
     return info
 
 
-def check_mps_availability() -> tuple[bool, str | None]:
-    """Check if MPS is available and return status with error message if not.
+def check_metal_availability() -> tuple[bool, str | None]:
+    """Check if Metal is available and return status with error message if not.
 
     Returns:
         Tuple of (is_available, error_message)
     """
     if platform.system() != "Darwin":
-        return False, "MPS is only available on macOS"
+        return False, "Metal is only available on macOS"
 
-    if not torch.backends.mps.is_built():
-        return False, "PyTorch was not built with MPS support"
-
-    if not torch.backends.mps.is_available():
-        return False, "MPS device is not available on this system"
+    if not is_apple_silicon():
+        return False, "Metal GPU acceleration requires Apple Silicon"
 
     return True, None
 
 
-def get_mps_memory_info() -> tuple[int, int]:
-    """Get MPS memory usage information.
+def get_metal_memory_info() -> tuple[int, int]:
+    """Get Metal memory usage information.
 
     Returns:
         Tuple of (allocated_bytes, total_bytes)
     """
-    if not torch.backends.mps.is_available():
+    available, _ = check_metal_availability()
+    if not available:
         return 0, 0
 
     try:
-        # MPS uses unified memory, so we report system memory
+        # Metal uses unified memory, so we report system memory
         result = subprocess.run(
             ["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, check=True
         )
         total = int(result.stdout.strip())
 
-        # Get current allocated memory from MPS
-        # Note: MPS doesn't have fine-grained memory tracking like CUDA
-        # We estimate based on driver allocator stats if available
-        allocated = torch.mps.current_allocated_memory()
+        # Get current allocated memory from PyTorch
+        # Note: This is an approximation based on PyTorch's tracking
+        try:
+            allocated = torch.mps.current_allocated_memory()
+        except Exception:
+            allocated = 0
 
         return allocated, total
     except Exception:
         return 0, 0
 
 
-def mps_synchronize() -> None:
-    """Synchronize MPS operations."""
-    if torch.backends.mps.is_available():
+def metal_synchronize() -> None:
+    """Synchronize Metal operations."""
+    try:
         torch.mps.synchronize()
+    except Exception:
+        pass
 
 
-def mps_empty_cache() -> None:
-    """Empty MPS cache to free memory."""
-    if torch.backends.mps.is_available():
+def metal_empty_cache() -> None:
+    """Empty Metal cache to free memory."""
+    try:
         torch.mps.empty_cache()
+    except Exception:
+        pass
 
 
 def get_optimal_dtype() -> torch.dtype:
-    """Get the optimal dtype for Metal/MPS inference.
+    """Get the optimal dtype for Metal inference.
 
-    MPS works best with float16 or bfloat16 on newer chips.
+    Metal works best with float16 or bfloat16 on newer chips.
     """
-    # bfloat16 support was added in later MPS versions
+    # bfloat16 support was added in later Metal versions
     # For now, default to float16 which is well-supported
     return torch.float16
 
@@ -166,7 +169,7 @@ def check_model_compatibility(model_config) -> tuple[bool, str | None]:
     Returns:
         Tuple of (is_compatible, error_message)
     """
-    # MPS doesn't support all quantization methods
+    # Metal doesn't support all quantization methods
     if hasattr(model_config, "quantization") and model_config.quantization:
         quant = model_config.quantization
         supported_quant = {"awq", "gptq", None}

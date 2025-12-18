@@ -10,7 +10,7 @@ logger = init_logger(__name__)
 
 
 class MetalModelLoader(BaseModelLoader):
-    """Model loader optimized for Metal/MPS backend.
+    """Model loader optimized for Metal backend.
 
     This loader handles model weight loading and conversion
     for execution on Apple Silicon.
@@ -82,8 +82,8 @@ class MetalModelLoader(BaseModelLoader):
 
         from vllm.model_executor.model_loader.loader import get_model
 
-        # Ensure we're loading to MPS device
-        device = torch.device("mps")
+        # Ensure we're loading to Metal device
+        device = torch.device("mps")  # PyTorch uses "mps" for Metal
 
         # Get optimal dtype for Metal
         target_dtype = get_optimal_dtype()
@@ -103,26 +103,26 @@ class MetalModelLoader(BaseModelLoader):
             scheduler_config=scheduler_config,
         )
 
-        # Move to MPS if not already there
-        if not str(model.device).startswith("mps"):
+        # Move to Metal if not already there
+        if not str(model.device).startswith("mps"):  # PyTorch uses "mps" for Metal
             model = model.to(device=device, dtype=target_dtype)
 
         return model
 
 
-def load_weights_to_mps(
+def load_weights_to_metal(
     weights_iterator,
     model: torch.nn.Module,
     dtype: torch.dtype = torch.float16,
 ) -> None:
-    """Load weights from an iterator into a model on MPS.
+    """Load weights from an iterator into a model on Metal.
 
     Args:
         weights_iterator: Iterator yielding (name, tensor) tuples
         model: Model to load weights into
         dtype: Target dtype for weights
     """
-    device = torch.device("mps")
+    device = torch.device("mps")  # PyTorch uses "mps" for Metal
     state_dict = model.state_dict()
 
     for name, weight in weights_iterator:
@@ -157,14 +157,14 @@ def convert_weights_for_metal(
         Converted state dictionary
     """
     converted = {}
-    device = torch.device("mps")
+    device = torch.device("mps")  # PyTorch uses "mps" for Metal
 
     for name, tensor in state_dict.items():
         # Convert to target dtype
         if tensor.dtype in (torch.float32, torch.float64):
             tensor = tensor.to(dtype=dtype)
 
-        # Move to MPS
+        # Move to Metal
         tensor = tensor.to(device=device)
 
         converted[name] = tensor

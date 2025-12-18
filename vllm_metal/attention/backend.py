@@ -25,7 +25,7 @@ class MetalAttentionMetadata(AttentionMetadata):
     """Metadata for Metal attention operations.
 
     This class stores the metadata needed for attention computation
-    on Metal/MPS backend.
+    on Apple Metal backend.
     """
 
     # Sequence lengths for prefill
@@ -250,7 +250,7 @@ class MetalAttentionMetadataBuilder(AttentionMetadataBuilder):
 
 
 class MetalAttentionBackend(AttentionBackend):
-    """Attention backend for Apple Metal/MPS."""
+    """Attention backend for Apple Metal."""
 
     @staticmethod
     def get_name() -> str:
@@ -258,9 +258,9 @@ class MetalAttentionBackend(AttentionBackend):
 
     @staticmethod
     def get_impl_cls() -> type[AttentionImpl]:
-        from vllm_metal.attention.mps_attention import MPSAttentionImpl
+        from vllm_metal.attention.metal_attention import MetalAttentionImpl
 
-        return MPSAttentionImpl
+        return MetalAttentionImpl
 
     @staticmethod
     def get_metadata_cls() -> type[MetalAttentionMetadata]:

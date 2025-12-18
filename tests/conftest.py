@@ -9,15 +9,13 @@ import torch
 
 def pytest_configure(config):
     """Configure pytest markers."""
-    config.addinivalue_line(
-        "markers", "metal: mark test as requiring Metal/MPS backend"
-    )
+    config.addinivalue_line("markers", "metal: mark test as requiring Metal backend")
     config.addinivalue_line("markers", "slow: mark test as slow running")
 
 
 def pytest_collection_modifyitems(config, items):
     """Skip tests based on platform and availability."""
-    skip_metal = pytest.mark.skip(reason="Metal/MPS not available")
+    skip_metal = pytest.mark.skip(reason="Metal not available")
     skip_not_macos = pytest.mark.skip(reason="Not running on macOS")
 
     for item in items:
@@ -25,16 +23,20 @@ def pytest_collection_modifyitems(config, items):
             # Check if we're on macOS
             if platform.system() != "Darwin":
                 item.add_marker(skip_not_macos)
-            # Check if MPS is available
+            # Check if Metal is available (PyTorch uses "mps" device for Metal)
             elif not torch.backends.mps.is_available():
                 item.add_marker(skip_metal)
 
 
 @pytest.fixture
-def mps_device():
-    """Fixture providing an MPS device if available."""
+def metal_device():
+    """Fixture providing a Metal device if available.
+
+    Note: PyTorch uses 'mps' as the device type for Metal.
+    """
     if not torch.backends.mps.is_available():
-        pytest.skip("MPS not available")
+        pytest.skip("Metal not available")
+    # PyTorch uses "mps" device type for Metal
     return torch.device("mps")
 
 
@@ -45,9 +47,9 @@ def cpu_device():
 
 
 @pytest.fixture
-def sample_tensor(mps_device):
-    """Fixture providing a sample tensor on MPS."""
-    return torch.randn(4, 8, 16, device=mps_device, dtype=torch.float16)
+def sample_tensor(metal_device):
+    """Fixture providing a sample tensor on Metal."""
+    return torch.randn(4, 8, 16, device=metal_device, dtype=torch.float16)
 
 
 @pytest.fixture

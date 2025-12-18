@@ -40,7 +40,7 @@ def register_metal_ops() -> None:
         return
 
     # The operations are already implemented as Python functions
-    # that use PyTorch MPS-compatible operations.
+    # that use PyTorch Metal-compatible operations.
     # Registration is mainly for tracking purposes.
     _registered = True
 

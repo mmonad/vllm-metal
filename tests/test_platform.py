@@ -16,13 +16,13 @@ class TestMetalPlatform:
         assert MetalPlatform._enum == PlatformEnum.OOT
 
     def test_device_name(self):
-        """Test device name is 'mps'."""
-        assert MetalPlatform.device_name == "mps"
-        assert MetalPlatform.device_type == "mps"
+        """Test device name is 'metal'."""
+        assert MetalPlatform.device_name == "metal"
+        assert MetalPlatform.device_type == "metal"
 
     def test_dispatch_key(self):
         """Test dispatch key."""
-        assert MetalPlatform.dispatch_key == "MPS"
+        assert MetalPlatform.dispatch_key == "METAL"
 
     def test_supported_quantization(self):
         """Test supported quantization methods."""
@@ -41,7 +41,7 @@ class TestMetalPlatform:
         """Test getting device UUID."""
         uuid = MetalPlatform.get_device_uuid()
         assert isinstance(uuid, str)
-        assert uuid.startswith("mps:")
+        assert uuid.startswith("metal:")
 
     @pytest.mark.metal
     def test_get_device_total_memory(self):
@@ -57,6 +57,7 @@ class TestMetalPlatform:
         assert ctx is not None
 
         with ctx:
+            # PyTorch uses "mps" device type for Metal
             x = torch.randn(10, 10, device="mps")
             y = x + 1
             assert y.shape == x.shape
@@ -67,6 +68,7 @@ class TestMetalPlatform:
         MetalPlatform.seed_everything(42)
 
         # Generate tensors with same seed
+        # PyTorch uses "mps" device type for Metal
         MetalPlatform.seed_everything(42)
         a = torch.randn(10, device="mps")
 
@@ -78,7 +80,7 @@ class TestMetalPlatform:
     @pytest.mark.metal
     def test_empty_cache(self):
         """Test emptying cache."""
-        # Create some tensors
+        # Create some tensors (PyTorch uses "mps" device type for Metal)
         _ = torch.randn(100, 100, device="mps")
 
         # Should not raise
@@ -87,6 +89,7 @@ class TestMetalPlatform:
     @pytest.mark.metal
     def test_synchronize(self):
         """Test synchronization."""
+        # PyTorch uses "mps" device type for Metal
         x = torch.randn(100, 100, device="mps")
         _ = x @ x.T
 
@@ -104,17 +107,17 @@ class TestMetalPlatform:
 
     def test_is_pin_memory_available(self):
         """Test pin memory availability."""
-        # MPS doesn't support pinned memory
+        # Metal doesn't support pinned memory
         assert MetalPlatform.is_pin_memory_available() is False
 
     def test_supports_fp8(self):
         """Test FP8 support."""
-        # MPS doesn't support FP8
+        # Metal doesn't support FP8
         assert MetalPlatform.supports_fp8() is False
 
     def test_supports_mx(self):
         """Test MX format support."""
-        # MPS doesn't support MX formats
+        # Metal doesn't support MX formats
         assert MetalPlatform.supports_mx() is False
 
     def test_check_if_supports_dtype(self):
@@ -163,11 +166,11 @@ class TestMetalPlatform:
             has_sink=False,
             use_sparse=False,
         )
-        assert cls == "vllm_metal.v1.attention.backends.mps_attn.MPSAttentionBackend"
+        assert cls == "vllm_metal.attention.backend.MetalAttentionBackend"
 
     def test_get_device_communicator_cls(self):
         """Test getting communicator class."""
-        # MPS doesn't support distributed
+        # Metal doesn't support distributed
         assert MetalPlatform.get_device_communicator_cls() is None
 
     def test_stateless_init_distributed_raises(self):

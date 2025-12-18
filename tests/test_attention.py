@@ -9,7 +9,7 @@ from vllm_metal.attention.backend import (
     MetalAttentionBackend,
     MetalAttentionMetadata,
 )
-from vllm_metal.attention.mps_attention import MPSAttentionImpl
+from vllm_metal.attention.metal_attention import MetalAttentionImpl
 
 
 class TestMetalAttentionBackend:
@@ -22,7 +22,7 @@ class TestMetalAttentionBackend:
     def test_get_impl_cls(self):
         """Test getting implementation class."""
         impl_cls = MetalAttentionBackend.get_impl_cls()
-        assert impl_cls == MPSAttentionImpl
+        assert impl_cls == MetalAttentionImpl
 
     def test_get_metadata_cls(self):
         """Test getting metadata class."""
@@ -92,13 +92,13 @@ class TestMetalAttentionMetadata:
         assert decode_meta.is_prompt is False
 
 
-class TestMPSAttentionImpl:
-    """Tests for MPS attention implementation."""
+class TestMetalAttentionImpl:
+    """Tests for Metal attention implementation."""
 
     @pytest.fixture
     def attention_impl(self):
         """Create attention implementation for testing."""
-        return MPSAttentionImpl(
+        return MetalAttentionImpl(
             num_heads=8,
             head_size=64,
             scale=1.0 / (64**0.5),
@@ -113,20 +113,20 @@ class TestMPSAttentionImpl:
         assert attention_impl.num_kv_heads == 8
 
     @pytest.mark.metal
-    def test_forward_prefill(self, attention_impl, mps_device):
+    def test_forward_prefill(self, attention_impl, metal_device):
         """Test forward pass for prefill."""
         seq_len = 16
         num_heads = 8
         head_size = 64
 
         query = torch.randn(
-            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float16
+            seq_len, num_heads * head_size, device=metal_device, dtype=torch.float16
         )
         key = torch.randn(
-            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float16
+            seq_len, num_heads * head_size, device=metal_device, dtype=torch.float16
         )
         value = torch.randn(
-            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float16
+            seq_len, num_heads * head_size, device=metal_device, dtype=torch.float16
         )
 
         metadata = MetalAttentionMetadata(
@@ -148,13 +148,13 @@ class TestMPSAttentionImpl:
         assert output.shape == (seq_len, num_heads * head_size)
 
     @pytest.mark.metal
-    def test_gqa_support(self, mps_device):
+    def test_gqa_support(self, metal_device):
         """Test grouped query attention support."""
         num_heads = 32
         num_kv_heads = 8  # GQA with 4 query groups
         head_size = 64
 
-        impl = MPSAttentionImpl(
+        impl = MetalAttentionImpl(
             num_heads=num_heads,
             head_size=head_size,
             scale=1.0 / (head_size**0.5),
@@ -163,13 +163,13 @@ class TestMPSAttentionImpl:
 
         seq_len = 16
         query = torch.randn(
-            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float16
+            seq_len, num_heads * head_size, device=metal_device, dtype=torch.float16
         )
         key = torch.randn(
-            seq_len, num_kv_heads * head_size, device=mps_device, dtype=torch.float16
+            seq_len, num_kv_heads * head_size, device=metal_device, dtype=torch.float16
         )
         value = torch.randn(
-            seq_len, num_kv_heads * head_size, device=mps_device, dtype=torch.float16
+            seq_len, num_kv_heads * head_size, device=metal_device, dtype=torch.float16
         )
 
         metadata = MetalAttentionMetadata(
@@ -195,13 +195,13 @@ class TestAttentionCorrectness:
     """Tests for attention correctness."""
 
     @pytest.mark.metal
-    def test_attention_matches_reference(self, mps_device):
+    def test_attention_matches_reference(self, metal_device):
         """Test that attention output matches reference implementation."""
         num_heads = 4
         head_size = 32
         seq_len = 8
 
-        impl = MPSAttentionImpl(
+        impl = MetalAttentionImpl(
             num_heads=num_heads,
             head_size=head_size,
             scale=1.0 / (head_size**0.5),
@@ -209,13 +209,13 @@ class TestAttentionCorrectness:
 
         # Create inputs
         query = torch.randn(
-            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float32
+            seq_len, num_heads * head_size, device=metal_device, dtype=torch.float32
         )
         key = torch.randn(
-            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float32
+            seq_len, num_heads * head_size, device=metal_device, dtype=torch.float32
         )
         value = torch.randn(
-            seq_len, num_heads * head_size, device=mps_device, dtype=torch.float32
+            seq_len, num_heads * head_size, device=metal_device, dtype=torch.float32
         )
 
         metadata = MetalAttentionMetadata(
@@ -245,7 +245,8 @@ class TestAttentionCorrectness:
 
         # Apply causal mask
         causal_mask = torch.triu(
-            torch.full((seq_len, seq_len), float("-inf"), device=mps_device), diagonal=1
+            torch.full((seq_len, seq_len), float("-inf"), device=metal_device),
+            diagonal=1,
         )
         attn_weights = attn_weights + causal_mask
 

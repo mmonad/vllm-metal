@@ -9,9 +9,9 @@ from vllm_metal._compat import (
     init_logger,
 )
 from vllm_metal.utils import (
-    check_mps_availability,
+    check_metal_availability,
     get_metal_device_info,
-    mps_empty_cache,
+    metal_empty_cache,
 )
 from vllm_metal.worker.metal_model_runner import MetalModelRunner
 
@@ -19,9 +19,9 @@ logger = init_logger(__name__)
 
 
 class MetalWorker(WorkerBase):
-    """Worker for executing models on Apple Metal/MPS.
+    """Worker for executing models on Apple Metal.
 
-    This worker manages model execution on the MPS device,
+    This worker manages model execution on the Metal device,
     including memory management and KV cache handling.
     """
 
@@ -55,10 +55,10 @@ class MetalWorker(WorkerBase):
             is_driver_worker: Whether this is the driver worker
             model_runner_cls: Optional model runner class override
         """
-        # Validate MPS availability
-        available, error = check_mps_availability()
+        # Validate Metal availability
+        available, error = check_metal_availability()
         if not available:
-            raise RuntimeError(f"Metal/MPS not available: {error}")
+            raise RuntimeError(f"Metal not available: {error}")
 
         self.model_config = model_config
         self.parallel_config = parallel_config
@@ -71,7 +71,7 @@ class MetalWorker(WorkerBase):
         self.distributed_init_method = distributed_init_method
         self.is_driver_worker = is_driver_worker
 
-        # Set device
+        # Set device (PyTorch uses "mps" for Metal)
         self.device = torch.device("mps")
 
         # Initialize model runner
@@ -97,18 +97,18 @@ class MetalWorker(WorkerBase):
         )
 
     def init_device(self) -> None:
-        """Initialize the MPS device."""
+        """Initialize the Metal device."""
         # Set the default device
         torch.set_default_device(self.device)
 
         # Log device info
         info = get_metal_device_info()
         logger.info(
-            f"Metal device: {info['name']}, MPS available: {info['mps_available']}"
+            f"Metal device: {info['name']}, Metal available: {info['metal_available']}"
         )
 
     def load_model(self) -> None:
-        """Load the model onto the MPS device."""
+        """Load the model onto the Metal device."""
         self.model_runner.load_model()
 
     def determine_num_available_blocks(self) -> tuple[int, int]:
@@ -187,7 +187,7 @@ class MetalWorker(WorkerBase):
 
         logger.info(
             f"Initialized KV cache: "
-            f"{len(self.gpu_cache)} layers on MPS, "
+            f"{len(self.gpu_cache)} layers on Metal, "
             f"{len(self.cpu_cache) if self.cpu_cache else 0} layers on CPU"
         )
 
@@ -287,4 +287,4 @@ class MetalWorker(WorkerBase):
 
     def __del__(self):
         """Cleanup when worker is destroyed."""
-        mps_empty_cache()
+        metal_empty_cache()

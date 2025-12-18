@@ -11,13 +11,13 @@ from vllm_metal._compat import (
 )
 from vllm_metal.attention import MetalAttentionBackend, MetalAttentionMetadata
 from vllm_metal.ops.cache import allocate_unified_kv_cache
-from vllm_metal.utils import get_optimal_dtype, mps_synchronize
+from vllm_metal.utils import get_optimal_dtype, metal_synchronize
 
 logger = init_logger(__name__)
 
 
 class MetalModelRunner:
-    """Model runner for executing models on Metal/MPS.
+    """Model runner for executing models on Apple Metal.
 
     This class handles model execution, KV cache management,
     and input preparation for the Metal backend.
@@ -52,7 +52,7 @@ class MetalModelRunner:
         self.load_config = load_config
         self.is_driver_worker = is_driver_worker
 
-        self.device = torch.device("mps")
+        self.device = torch.device("mps")  # PyTorch uses "mps" for Metal
         self.model: nn.Module | None = None
 
         # Determine dtype
@@ -74,7 +74,7 @@ class MetalModelRunner:
         self.attn_backend = MetalAttentionBackend
 
     def load_model(self) -> None:
-        """Load the model onto MPS device."""
+        """Load the model onto Metal device."""
         from vllm.model_executor.model_loader import get_model
 
         logger.info(f"Loading model: {self.model_config.model}")
@@ -87,7 +87,7 @@ class MetalModelRunner:
             scheduler_config=self.scheduler_config,
         )
 
-        # Move to MPS and convert dtype
+        # Move to Metal and convert dtype
         self.model = self.model.to(device=self.device, dtype=self.dtype)
         self.model.eval()
 
@@ -190,7 +190,7 @@ class MetalModelRunner:
             )
 
         # Synchronize before returning
-        mps_synchronize()
+        metal_synchronize()
 
         return hidden_states
 
@@ -374,5 +374,5 @@ class MetalModelRunner:
             except Exception as e:
                 logger.debug(f"Warmup forward pass failed (expected): {e}")
 
-        mps_synchronize()
+        metal_synchronize()
         logger.info("Model warm-up complete")

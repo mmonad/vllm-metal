@@ -2,10 +2,10 @@
 """Metal attention backend implementations for vLLM."""
 
 from vllm_metal.attention.backend import MetalAttentionBackend, MetalAttentionMetadata
-from vllm_metal.attention.mps_attention import MPSAttentionImpl
+from vllm_metal.attention.metal_attention import MetalAttentionImpl
 
 __all__ = [
     "MetalAttentionBackend",
     "MetalAttentionMetadata",
-    "MPSAttentionImpl",
+    "MetalAttentionImpl",
 ]
