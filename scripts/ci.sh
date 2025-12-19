@@ -65,6 +65,10 @@ installs() {
     if ! command -v ninja &> /dev/null; then
       brew install ninja
     fi
+
+    if ! command -v ruff &> /dev/null; then
+      brew install ruff
+    fi
   fi
 }
 
