@@ -100,6 +100,21 @@ class TestTensorConversion:
         assert torch_tensor.dtype == torch.int32
         np.testing.assert_array_equal(torch_tensor.numpy(), np.array(mlx_array))
 
+    def test_mlx_to_torch_bfloat16(self) -> None:
+        """Test MLX to PyTorch conversion for bfloat16."""
+        mlx_array = mx.array([[1.0, 2.0], [3.0, 4.0]], dtype=mx.bfloat16)
+        mx.eval(mlx_array)
+
+        torch_tensor = mlx_to_torch(mlx_array, device="cpu")
+
+        assert torch_tensor.shape == (2, 2)
+        assert torch_tensor.dtype == torch.bfloat16
+        # Compare as float32 since numpy doesn't support bfloat16
+        torch.testing.assert_close(
+            torch_tensor.float(),
+            torch.tensor([[1.0, 2.0], [3.0, 4.0]]),
+        )
+
     def test_round_trip_conversion(self) -> None:
         """Test round-trip conversion preserves values."""
         # PyTorch -> MLX -> PyTorch
