@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING, Any
 
 import mlx.core as mx
 import torch
-import torch.distributed
 from vllm.config import VllmConfig
 from vllm.distributed import (
     ensure_model_parallel_initialized,
