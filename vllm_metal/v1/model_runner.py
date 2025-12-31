@@ -681,8 +681,7 @@ class MetalModelRunner:
         if self.model is None or self.tokenizer is None:
             raise RuntimeError("Model and tokenizer must be loaded")
 
-        # Generate tokens using stream_generate
-        generated_text = ""
+        segments: list[str] = []
 
         for response in stream_generate(
             self.model,
@@ -691,6 +690,6 @@ class MetalModelRunner:
             max_tokens=max_tokens,
             temp=temperature,
         ):
-            generated_text = response.text
+            segments.append(response.text)
 
-        return generated_text
+        return "".join(segments)
