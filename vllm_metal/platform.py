@@ -103,10 +103,8 @@ class MetalPlatform(Platform):
         try:
             import mlx.core as mx
 
-            # Validate that a GPU device can be constructed; do not set it here.
-            _ = mx.Device(mx.DeviceType.gpu)
-            return True
-        except (ImportError, RuntimeError):
+            return bool(mx.metal.is_available())
+        except (ImportError, AttributeError, RuntimeError):
             return False
 
     @classmethod
