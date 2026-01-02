@@ -6,10 +6,12 @@ Optimized for performance with:
 - Async evaluation pipeline for pipelined computation
 - Pre-allocated input buffers to reduce allocation overhead
 - Rust-based token state management for efficient batch operations
+- Global model cache for fast repeated loads
 """
 
 import time
 from dataclasses import dataclass
+from threading import Lock
 from typing import Any
 
 import mlx.core as mx
@@ -33,6 +35,10 @@ from vllm_metal.pytorch_backend.tensor_bridge import mlx_to_torch
 
 logger = init_logger(__name__)
 
+# Global model cache for fast repeated loads
+_model_cache: dict[str, tuple[Any, Any]] = {}  # model_name -> (model, tokenizer)
+_model_cache_lock = Lock()
+
 # Try to import Rust extension for high-performance token state management
 try:
     from vllm_metal._rs import RequestStateManager as RustRequestStateManager
@@ -45,6 +51,21 @@ except ImportError:
 # Configuration for batched operations
 _MIN_BATCH_SIZE_FOR_BATCHING = 2  # Minimum requests to use BatchKVCache
 _MAX_BATCH_SIZE = 64  # Maximum batch size for decode
+
+# Performance tuning
+_CACHE_CLEAR_INTERVAL = 50  # Clear cache every N finished requests
+
+
+def _mlx_greedy_sample(logits: mx.array) -> mx.array:
+    """Native MLX greedy sampling - avoids PyTorch round-trip.
+
+    Args:
+        logits: Logits tensor of shape (batch_size, vocab_size)
+
+    Returns:
+        Token IDs of shape (batch_size,)
+    """
+    return mx.argmax(logits, axis=-1)
 
 
 @dataclass
@@ -148,12 +169,26 @@ class MetalModelRunner:
         # vLLM Sampler for token sampling with temperature, top_k, top_p support
         self._sampler = Sampler()
 
+        # Track finished requests for lazy cache clearing
+        self._finished_request_count = 0
+
     def load_model(self) -> None:
-        """Load the model using MLX."""
+        """Load the model using MLX with caching for fast repeated loads."""
         model_name = self.model_config.model
 
         logger.info(f"Loading model: {model_name}")
         start_time = time.time()
+
+        # Check global cache first for fast repeated loads
+        with _model_cache_lock:
+            if model_name in _model_cache:
+                self.model, self.tokenizer = _model_cache[model_name]
+                load_time = time.time() - start_time
+                logger.info(
+                    f"Model loaded from cache in {load_time:.3f}s: {model_name}"
+                )
+                self._extract_model_args()
+                return
 
         # Load model and tokenizer using mlx_lm
         self.model, self.tokenizer = mlx_load(
@@ -161,7 +196,16 @@ class MetalModelRunner:
             tokenizer_config={"trust_remote_code": self.model_config.trust_remote_code},
         )
 
-        # Extract model configuration
+        # Cache for future loads
+        with _model_cache_lock:
+            _model_cache[model_name] = (self.model, self.tokenizer)
+
+        self._extract_model_args()
+        load_time = time.time() - start_time
+        logger.info(f"Model loaded in {load_time:.2f}s: {model_name}")
+
+    def _extract_model_args(self) -> None:
+        """Extract model configuration from loaded model."""
         if hasattr(self.model, "args"):
             self.model_args = vars(self.model.args)
         elif hasattr(self.model, "config"):
@@ -181,9 +225,6 @@ class MetalModelRunner:
                 "head_dim": getattr(self.model, "head_dim", 128),
                 "vocab_size": getattr(self.model, "vocab_size", 32000),
             }
-
-        load_time = time.time() - start_time
-        logger.info(f"Model loaded in {load_time:.2f}s: {model_name}")
         if self.metal_config.debug:
             logger.info(f"Model args: {self.model_args}")
 
@@ -411,20 +452,36 @@ class MetalModelRunner:
         input_ids = mx.array([token_ids], dtype=mx.int32)
         logits = self.model(input_ids, cache=cache)
 
-        # Evaluate to materialize results before conversion
-        mx.eval(logits)
+        # Extract last token logits
+        last_logits = logits[:, -1, :]
 
-        # Convert MLX logits to torch and sample using vLLM's Sampler
-        # Cast to float32 for numpy conversion (numpy doesn't support bfloat16)
-        logits_torch = mlx_to_torch(
-            logits[:, -1, :].astype(mx.float32), device=self.device
+        # Use native MLX greedy sampling when possible (avoids PyTorch round-trip)
+        is_greedy = sampling_params.temperature < 1e-5
+        needs_advanced_sampling = (
+            sampling_params.top_k > 0
+            or sampling_params.top_p < 1.0
+            or sampling_params.frequency_penalty != 0
+            or sampling_params.presence_penalty != 0
+            or sampling_params.repetition_penalty != 1.0
         )
-        metadata = self._make_sampling_metadata([sampling_params], [[]])
-        output = self._sampler.forward(logits_torch, metadata)
-        next_token = int(output.sampled_token_ids[0, 0].item())
 
-        # Evaluate to materialize cache state
-        mx.eval([c.state for c in cache])
+        if is_greedy and not needs_advanced_sampling:
+            # Fast path: native MLX greedy sampling
+            next_token_mlx = _mlx_greedy_sample(last_logits)
+            # Single eval for logits, token, and cache state together
+            mx.eval(next_token_mlx, *[c.state for c in cache])
+            next_token = int(next_token_mlx.item())
+        else:
+            # Slow path: use vLLM sampler for advanced sampling
+            # Single eval for logits and cache state together
+            mx.eval(last_logits, *[c.state for c in cache])
+            # Convert to torch for sampling
+            logits_torch = mlx_to_torch(
+                last_logits.astype(mx.float32), device=self.device
+            )
+            metadata = self._make_sampling_metadata([sampling_params], [[]])
+            output = self._sampler.forward(logits_torch, metadata)
+            next_token = int(output.sampled_token_ids[0, 0].item())
 
         return next_token, cache
 
@@ -465,22 +522,41 @@ class MetalModelRunner:
         # === SINGLE FORWARD PASS FOR ALL REQUESTS ===
         logits = self.model(batched_input, cache=batch_cache)
 
-        # Evaluate to materialize results before conversion
-        mx.eval(logits)
-
-        # Extract next tokens using vLLM's Sampler with per-request params
+        # Extract next token logits
         next_token_logits = logits[:, -1, :]  # Shape: (batch_size, vocab_size)
         sampling_params_list = [state.sampling_params for _, state in decode_reqs]
-        output_tokens_list = [state.token_ids for _, state in decode_reqs]
 
-        logits_torch = mlx_to_torch(next_token_logits, device=self.device)
-        metadata = self._make_sampling_metadata(
-            sampling_params_list, output_tokens_list
+        # Check if all requests can use fast greedy sampling
+        all_greedy = all(sp.temperature < 1e-5 for sp in sampling_params_list)
+        any_advanced = any(
+            sp.top_k > 0
+            or sp.top_p < 1.0
+            or sp.frequency_penalty != 0
+            or sp.presence_penalty != 0
+            or sp.repetition_penalty != 1.0
+            for sp in sampling_params_list
         )
-        output = self._sampler.forward(logits_torch, metadata)
-        next_tokens = [
-            int(output.sampled_token_ids[i, 0].item()) for i in range(batch_size)
-        ]
+
+        if all_greedy and not any_advanced:
+            # Fast path: native MLX greedy sampling for entire batch
+            next_tokens_mlx = _mlx_greedy_sample(next_token_logits)
+            # Single eval - no intermediate sync needed
+            mx.eval(next_tokens_mlx)
+            next_tokens: list[int] = next_tokens_mlx.tolist()
+        else:
+            # Slow path: use vLLM sampler for advanced sampling
+            mx.eval(next_token_logits)
+            output_tokens_list = [state.token_ids for _, state in decode_reqs]
+            logits_torch = mlx_to_torch(
+                next_token_logits.astype(mx.float32), device=self.device
+            )
+            metadata = self._make_sampling_metadata(
+                sampling_params_list, output_tokens_list
+            )
+            output = self._sampler.forward(logits_torch, metadata)
+            next_tokens = [
+                int(output.sampled_token_ids[i, 0].item()) for i in range(batch_size)
+            ]
 
         # Extract updated caches back to individual requests
         for i, (req_id, state) in enumerate(decode_reqs):
@@ -514,18 +590,36 @@ class MetalModelRunner:
             input_ids = mx.array([[last_token]], dtype=mx.int32)
 
             logits = self.model(input_ids, cache=state.cache)
-            mx.eval(logits)
+            last_logits = logits[:, -1, :]
 
-            # Sample using vLLM's Sampler with request's params
-            # Cast to float32 for numpy conversion (numpy doesn't support bfloat16)
-            logits_torch = mlx_to_torch(
-                logits[:, -1, :].astype(mx.float32), device=self.device
+            # Use native MLX greedy sampling when possible
+            sp = state.sampling_params
+            is_greedy = sp.temperature < 1e-5
+            needs_advanced = (
+                sp.top_k > 0
+                or sp.top_p < 1.0
+                or sp.frequency_penalty != 0
+                or sp.presence_penalty != 0
+                or sp.repetition_penalty != 1.0
             )
-            metadata = self._make_sampling_metadata(
-                [state.sampling_params], [state.token_ids]
-            )
-            output = self._sampler.forward(logits_torch, metadata)
-            next_token = int(output.sampled_token_ids[0, 0].item())
+
+            if is_greedy and not needs_advanced:
+                # Fast path: native MLX greedy sampling
+                next_token_mlx = _mlx_greedy_sample(last_logits)
+                mx.eval(next_token_mlx)
+                next_token = int(next_token_mlx.item())
+            else:
+                # Slow path: use vLLM sampler
+                mx.eval(last_logits)
+                logits_torch = mlx_to_torch(
+                    last_logits.astype(mx.float32), device=self.device
+                )
+                metadata = self._make_sampling_metadata(
+                    [state.sampling_params], [state.token_ids]
+                )
+                output = self._sampler.forward(logits_torch, metadata)
+                next_token = int(output.sampled_token_ids[0, 0].item())
+
             next_tokens.append(next_token)
 
             # Update state
@@ -637,8 +731,11 @@ class MetalModelRunner:
                 if self._rust_state_manager is not None:
                     self._rust_state_manager.remove_request(req_id)
 
-            # Clear MLX's memory cache after finishing requests
-            mx.clear_cache()
+            # Lazy cache clearing - only clear periodically to avoid sync overhead
+            self._finished_request_count += len(scheduler_output.finished_req_ids)
+            if self._finished_request_count >= _CACHE_CLEAR_INTERVAL:
+                mx.clear_cache()
+                self._finished_request_count = 0
 
         # Handle empty case
         if not req_ids:

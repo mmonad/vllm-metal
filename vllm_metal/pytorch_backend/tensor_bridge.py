@@ -62,6 +62,7 @@ def torch_to_mlx(tensor: torch.Tensor) -> mx.array:
 def mlx_to_torch(
     array: mx.array,
     device: torch.device | Literal["mps", "cpu"] | None = None,
+    already_contiguous: bool = False,
 ) -> torch.Tensor:
     """Convert MLX array to PyTorch tensor.
 
@@ -70,6 +71,7 @@ def mlx_to_torch(
     Args:
         array: MLX array
         device: Target PyTorch device (default: MPS if available)
+        already_contiguous: Skip contiguity check if array is known contiguous
 
     Returns:
         PyTorch tensor with the same data
@@ -79,17 +81,18 @@ def mlx_to_torch(
     elif isinstance(device, str):
         device = torch.device(device)
 
-    # Evaluate any pending MLX operations
-    mx.eval(array)
-
     # Use memoryview for zero-copy conversion (bypasses numpy for bfloat16)
     # reference: https://github.com/ml-explore/mlx/issues/403
     torch_dtype = MLX_TO_TORCH_DTYPE.get(array.dtype)
     if torch_dtype is not None:
-        # MLX views / non-contiguous arrays expose a non-contiguous buffer (or
-        # sometimes no usable buffer), which `torch.frombuffer` can't consume.
-        buffer = memoryview(array)
-        if not buffer.c_contiguous:
+        if already_contiguous:
+            # Fast path: skip contiguity check, single eval
+            mx.eval(array)
+            buffer = memoryview(array)
+        else:
+            # MLX views / non-contiguous arrays expose a non-contiguous buffer (or
+            # sometimes no usable buffer), which `torch.frombuffer` can't consume.
+            # Make contiguous first, then eval once
             array = mx.contiguous(array)
             mx.eval(array)
             buffer = memoryview(array)
@@ -98,8 +101,6 @@ def mlx_to_torch(
     else:
         # Fallback to numpy path for unsupported dtypes
         raise ValueError(f"Unsupported MLX dtype: {array.dtype}")
-        # np_array = np.array(array)
-        # tensor = torch.from_numpy(np_array)
 
     # Move to target device
     if device.type != "cpu":
