@@ -3,7 +3,7 @@
 
 import logging
 import platform as py_platform
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import psutil
 import torch

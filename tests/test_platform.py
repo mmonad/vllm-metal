@@ -76,7 +76,9 @@ class TestMetalPlatform:
             block_size=16,
             use_sparse=True,
         )
-        with pytest.raises(NotImplementedError, match="Sparse Attention is not supported"):
+        with pytest.raises(
+            NotImplementedError, match="Sparse Attention is not supported"
+        ):
             MetalPlatform.get_attn_backend_cls(AttentionBackendEnum.CPU_ATTN, cfg)
 
     def test_memory_info(self) -> None:
